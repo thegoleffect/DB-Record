@@ -2,16 +2,21 @@
 import sys
 sys.dont_write_bytecode = True
 import unittest
-import sqlite
+import application.libraries.sqlite as sqlite
 import datetime
 import os
-from record import Record_Instance, ImproperUsageError
+from application.models import Record_Instance, ImproperUsageError
+import tornado.database
 
 class TestRecord(unittest.TestCase):
   def setUp(self):
     # self.path = '/tmp/test_db.db'
     self.path = ":memory:"
-    self.db = sqlite.Connection(self.path)
+    # self.db = sqlite.Connection(self.path)
+    self.db = tornado.database.Connection(
+        host="localhost", database="higut",
+        user="higut", password="bevyofbeavers"
+    )
     self.initialize_db()
     self.Record = Record_Instance(self.db)
     
@@ -19,9 +24,11 @@ class TestRecord(unittest.TestCase):
     self.db.close()
 
   def initialize_db(self):
-    self.db.execute("""CREATE TABLE stocks (id integer primary key, date text, trans text, symbol text, qty real, price real)""") 
-    self.db.execute('insert into stocks (date, trans, symbol, qty, price) values (?,?,?,?,?)', '2006-01-05','BUY','RHAT',100,35.14)
-    self.db.execute("""CREATE TABLE stocks_disabled (id integer primary key, date text, trans text, symbol text, qty real, price real)""")
+    self.db.execute("""DROP TABLE IF EXISTS stocks""")
+    self.db.execute("""DROP TABLE IF EXISTS stocks_disabled""")
+    self.db.execute("""CREATE TABLE stocks (id integer auto_increment primary key, date text, trans text, symbol text, qty real, price real)""") 
+    self.db.execute("""insert into stocks (date, trans, symbol, qty, price) values (%s, %s, %s, %s, %s)""", '2006-01-05','BUY','RHAT',100,35.14)
+    self.db.execute("""CREATE TABLE stocks_disabled (id integer auto_increment primary key, date text, trans text, symbol text, qty real, price real)""")
 
   def testRecordID(self):
     self.assertNotEqual(self.Record("stocks").id(1).result,[])
@@ -47,8 +54,8 @@ class TestRecord(unittest.TestCase):
     self.assertNotEqual(len(self.Record("stocks").all().result), 1)
     
   def testNewLastInsertID(self):  
-    result = self.Record("stocks").new({'date':'2010-01-01', 'trans':'BUY', 'symbol':'MSFT', 'qty':20, 'price':12.12}).result
-    self.assertEqual(result, 2)
+    _id = self.Record("stocks").new({'date':'2010-01-01', 'trans':'BUY', 'symbol':'MSFT', 'qty':20, 'price':12.12}).result['id']
+    self.assertEqual(_id, 2)
     
   def testRecordEqID(self):
     result1 = self.Record("stocks").eq("id", "1").result
@@ -81,12 +88,12 @@ class TestRecord(unittest.TestCase):
     self.assertEqual(result1, result2)
     
   def testRecordLikeID(self):
-    result1 = self.Record("stocks").like('symbol', 'RH%').result
+    result1 = self.Record("stocks").like('symbol', 'RH%%').result
     result2 = self.Record("stocks").id(1).result
     self.assertEqual(result1, result2)
     
   def testRecordNlikeID(self):
-    result1 = self.Record("stocks").nlike('symbol', 'MS%').result
+    result1 = self.Record("stocks").nlike('symbol', 'MS%%').result
     result2 = self.Record("stocks").id(1).result
     self.assertEqual(result1, result2)
     
